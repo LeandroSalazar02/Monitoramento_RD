@@ -11,6 +11,9 @@ let monthlyChartInstance = null;
 Chart.defaults.color = '#ffffff';
 Chart.defaults.borderColor = '#444';
 
+// Nome do arquivo CSV padrão
+const DEFAULT_CSV_FILE = 'dados.csv';
+
 document.addEventListener('DOMContentLoaded', function() {
     // Upload do CSV
     document.getElementById('csvInput').addEventListener('change', handleFileUpload);
@@ -21,6 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('searchTable').addEventListener('input', filterTable);
     document.getElementById('sortOrder').addEventListener('change', sortTable);
     
+    // Botão para recarregar o arquivo padrão
+    document.getElementById('reloadDefault').addEventListener('click', loadDefaultCSV);
+    
     // Ordenação por clique no cabeçalho
     document.querySelectorAll('.sortable').forEach(header => {
         header.addEventListener('click', () => {
@@ -28,7 +34,91 @@ document.addEventListener('DOMContentLoaded', function() {
             sortByColumn(column);
         });
     });
+
+    // Tentar carregar o arquivo CSV padrão automaticamente
+    loadDefaultCSV();
 });
+
+// Função para carregar o CSV padrão automaticamente
+async function loadDefaultCSV() {
+    const statusEl = document.getElementById('loadStatus');
+    
+    try {
+        statusEl.textContent = "Carregando arquivo padrão...";
+        
+        const response = await fetch(DEFAULT_CSV_FILE);
+        
+        if (!response.ok) {
+            throw new Error(`Arquivo ${DEFAULT_CSV_FILE} não encontrado`);
+        }
+        
+        const csvText = await response.text();
+        
+        // Processar o CSV
+        Papa.parse(csvText, {
+            header: true,
+            delimiter: ";",
+            skipEmptyLines: true,
+            complete: function(results) {
+                processCSVData(results.data);
+                statusEl.textContent = `Arquivo padrão carregado: ${DEFAULT_CSV_FILE} (${eventData.length} registros)`;
+            },
+            error: function(error) {
+                statusEl.textContent = `Erro ao ler arquivo padrão: ${error.message}`;
+                console.error(error);
+            }
+        });
+        
+    } catch (error) {
+        statusEl.textContent = `${error.message}. Faça upload manual de um arquivo CSV.`;
+        console.log('Arquivo padrão não encontrado, aguardando upload manual...');
+    }
+}
+
+// Função para processar dados do CSV (reutilizada pelo upload manual e automático)
+function processCSVData(csvData) {
+    // Mapear colunas da planilha para o formato usado no dashboard
+    eventData = csvData.map(row => {
+        // Lidar com variações de nomes
+        const fabrica = row["Fábrica"] || row["Fabrica"] || row["fabrica"] || "";
+        const tipoEvento = row["Tipo de Evento"] || row["Tipo evento"] || row["tipo_evento"] || "";
+        const evento = row["Evento"] || row["evento"] || "";
+        const inicio = row["Horário de Início"] || row["Horario de Início"] || row["Horário de inicio"] || row["Horario de inicio"] || row["inicio"] || "";
+        const recuperado = row["Horario Recuperado"] || row["Horário Recuperado"] || row["recuperado"] || "";
+        const atuacao = row["Atuação da bateria"] || row["Atuacao da bateria"] || row["atuacao_bateria"] || "";
+        const anotacoes = row["Anotações"] || row["Anotacoes"] || row["anotacoes"] || "";
+
+        const duracao = calcularDuracao(inicio, recuperado);
+        const duracaoHoras = calcularDuracaoHoras(inicio, recuperado);
+
+        return {
+            fabrica,
+            tipoEvento,
+            evento,
+            inicio: formatarDataBrasil(inicio),
+            recuperado: formatarDataBrasil(recuperado),
+            duracao,
+            duracaoHoras,
+            atuacao_bateria: atuacao,
+            anotacoes,
+            // Guardar a data original para ordenação
+            _inicioOriginal: inicio,
+            _recuperadoOriginal: recuperado
+        };
+    }).filter(item => item.inicio && item.inicio !== ""); // garante que só registros com início entram
+
+    if (eventData.length === 0) {
+        document.getElementById('loadStatus').textContent = "Nenhum dado válido encontrado no CSV.";
+        resetDashboard();
+        return;
+    }
+
+    // Inicializar dashboards com os dados
+    initializeFilters();
+    updateStatistics();
+    renderCharts();
+    populateTable();
+}
 
 // --------- Cálculos de duração ---------
 
@@ -101,7 +191,7 @@ function formatarDataBrasil(dataStr) {
     return `${dia}/${mes}/${ano} ${horas}:${minutos}`;
 }
 
-// Lê o CSV selecionado
+// Lê o CSV selecionado (upload manual)
 function handleFileUpload(event) {
     const file = event.target.files[0];
     const statusEl = document.getElementById('loadStatus');
@@ -118,49 +208,8 @@ function handleFileUpload(event) {
         delimiter: ";",
         skipEmptyLines: true,
         complete: function(results) {
-            // Mapear colunas da planilha para o formato usado no dashboard
-            eventData = results.data.map(row => {
-                // Lidar com variações de nomes
-                const fabrica = row["Fábrica"] || row["Fabrica"] || row["fabrica"] || "";
-                const tipoEvento = row["Tipo de Evento"] || row["Tipo evento"] || row["tipo_evento"] || "";
-                const evento = row["Evento"] || row["evento"] || "";
-                const inicio = row["Horário de Início"] || row["Horario de Início"] || row["Horário de inicio"] || row["Horario de inicio"] || row["inicio"] || "";
-                const recuperado = row["Horario Recuperado"] || row["Horário Recuperado"] || row["recuperado"] || "";
-                const atuacao = row["Atuação da bateria"] || row["Atuacao da bateria"] || row["atuacao_bateria"] || "";
-                const anotacoes = row["Anotações"] || row["Anotacoes"] || row["anotacoes"] || "";
-
-                const duracao = calcularDuracao(inicio, recuperado);
-                const duracaoHoras = calcularDuracaoHoras(inicio, recuperado);
-
-                return {
-                    fabrica,
-                    tipoEvento,
-                    evento,
-                    inicio: formatarDataBrasil(inicio),
-                    recuperado: formatarDataBrasil(recuperado),
-                    duracao,
-                    duracaoHoras,
-                    atuacao_bateria: atuacao,
-                    anotacoes,
-                    // Guardar a data original para ordenação
-                    _inicioOriginal: inicio,
-                    _recuperadoOriginal: recuperado
-                };
-            }).filter(item => item.inicio && item.inicio !== ""); // garante que só registros com início entram
-
-            if (eventData.length === 0) {
-                statusEl.textContent = "Nenhum dado válido encontrado no CSV.";
-                resetDashboard();
-                return;
-            }
-
+            processCSVData(results.data);
             statusEl.textContent = `Arquivo carregado com sucesso. Registros: ${eventData.length}`;
-
-            // Inicializar dashboards com os dados
-            initializeFilters();
-            updateStatistics();
-            renderCharts();
-            populateTable();
         },
         error: function(error) {
             statusEl.textContent = "Erro ao ler o arquivo: " + error.message;

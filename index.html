@@ -46,14 +46,20 @@
                 <!-- Upload do CSV -->
                 <div class="col-12">
                     <label class="form-label fw-bold">Carregar planilha CSV</label>
-                    <input type="file" class="form-control" id="csvInput" accept=".csv">
+                    <div class="d-flex flex-column flex-md-row gap-2 mb-2">
+                        <input type="file" class="form-control" id="csvInput" accept=".csv">
+                        <button class="btn btn-outline-primary" id="reloadDefault" style="min-width: 140px;">
+                            ↻ Carregar Padrão
+                        </button>
+                    </div>
                     <small class="text-muted">
-                        Planilha padrão com as seguintes colunas: Fábrica; Tipo de Evento; Evento; Horário de Início; Horário Recuperado; Atuação da bateria; Anotações.
+                        O sistema tenta carregar automaticamente o arquivo "dados.csv". 
+                        Ou faça upload manual de uma planilha CSV com as colunas: Fábrica; Tipo de Evento; Evento; Horário de Início; Horário Recuperado; Atuação da bateria; Anotações.
                     </small>
                 </div>
                 <div class="col-12 mt-2">
                     <span id="loadStatus" class="text-muted">
-                        Nenhum arquivo carregado ainda.
+                        Inicializando...
                     </span>
                 </div>
             </div>
@@ -213,7 +219,7 @@
                                 </thead>
                                 <tbody id="eventsTableBody">
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted py-4">Nenhum dado carregado. Faça upload de um arquivo CSV.</td>
+                                        <td colspan="6" class="text-center text-muted py-4">Carregando dados...</td>
                                     </tr>
                                 </tbody>
                             </table>
